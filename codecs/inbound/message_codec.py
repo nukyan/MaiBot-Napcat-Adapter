@@ -73,7 +73,7 @@ class NapCatInboundCodec(NapCatInboundCardMixin, NapCatInboundTextMixin):
         }
 
         # 仅按 message_type 判定群/私：私聊（如群临时会话）也可能携带 group_id。
-        if message_type == "group" and group_id:
+        if message_type == "group":
             additional_config["platform_io_target_group_id"] = group_id
             message_info["group_info"] = {"group_id": group_id, "group_name": group_name}
         else:
