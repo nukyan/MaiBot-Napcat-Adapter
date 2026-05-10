@@ -53,14 +53,6 @@ class NapCatInboundCodec(NapCatInboundCardMixin, NapCatInboundTextMixin):
         user_nickname = str(sender.get("nickname") or sender.get("card") or sender_user_id).strip() or sender_user_id
         user_cardname = str(sender.get("card") or "").strip() or None
 
-        # NapCat 在群临时会话内部 lookup 失败时会把 sender.nickname 兜底为字面量「临时会话」，这里再查一次以还原真实昵称。
-        if message_type != "group" and group_id and user_nickname == "临时会话":
-            member_info = await self._query_service.get_group_member_info(group_id, sender_user_id, no_cache=False)
-            if isinstance(member_info, Mapping):
-                if (recovered := normalize_optional_string(member_info.get("nickname"))) and recovered != "临时会话":
-                    user_nickname = recovered
-                user_cardname = user_cardname or normalize_optional_string(member_info.get("card"))
-
         raw_message, is_at = await self.convert_segments(payload, self_id)
         if not raw_message:
             raw_message = [self._build_text_segment("[unsupported]")]
@@ -86,12 +78,10 @@ class NapCatInboundCodec(NapCatInboundCardMixin, NapCatInboundTextMixin):
             message_info["group_info"] = {"group_id": group_id, "group_name": group_name}
         else:
             additional_config["platform_io_target_user_id"] = sender_user_id
-            # 群临时会话：以非路由元数据上报源群号让上层识别上下文；
+            # 群临时会话：把源群号作为非路由元数据上报，给表达方式作用域继承用；
             # 不要写 ``platform_io_target_group_id``，否则回复会被反向路由到群里。
             if group_id:
                 additional_config["source_group_id"] = group_id
-                if raw_group_name := str(payload.get("group_name") or "").strip():
-                    additional_config["source_group_name"] = raw_group_name
 
         message_id = str(payload.get("message_id") or f"napcat-{uuid4().hex}").strip()
         return {
